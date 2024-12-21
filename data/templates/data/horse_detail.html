@@ -1,0 +1,555 @@
+{% extends 'data/base.html' %}
+{% load humanize %}
+
+{% block title %}{{ horse_name }}の詳細分析{% endblock %}
+
+{% block extra_css %}
+<!-- DataTables CSS -->
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css">
+<style>
+    .stats-card {
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 2rem;
+    }
+    .chart-container {
+        height: 400px;
+        margin-bottom: 2rem;
+    }
+    .overall-stats {
+        background: #f8f9fa;
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 2rem;
+    }
+    .stat-value {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #0d6efd;
+    }
+    .nav-tabs {
+        margin-bottom: 1rem;
+    }
+    .highlight-stats {
+        background-color: rgba(40, 167, 69, 0.1);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">{{ horse_name }}の詳細分析</h2>
+
+    <!-- 総合成績 -->
+    <!-- 総合成績 -->
+    <div class="overall-stats">
+        <div class="row">
+            <div class="col-md-4 text-center">
+                <div class="mb-2">総レース数</div>
+                <div class="stat-value">{{ overall_stats.total_races }}</div>
+            </div>
+            <div class="col-md-4 text-center">
+                <div class="mb-2">勝利数</div>
+                <div class="stat-value">{{ overall_stats.total_wins }}</div>
+            </div>
+            <div class="col-md-4 text-center">
+                <div class="mb-2">勝率</div>
+                <div class="stat-value">{{ overall_stats.win_rate|floatformat:1 }}%</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- タブナビゲーション -->
+    <ul class="nav nav-tabs" id="analysisTab" role="tablist">
+        <li class="nav-item">
+            <a class="nav-link active" id="course-tab" data-bs-toggle="tab" href="#course" role="tab">コース別成績</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" id="distance-tab" data-bs-toggle="tab" href="#distance" role="tab">距離別成績</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" id="jockey-tab" data-bs-toggle="tab" href="#jockey" role="tab">騎手別成績</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" id="condition-tab" data-bs-toggle="tab" href="#condition" role="tab">馬場状態別成績</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" id="time-tab" data-bs-toggle="tab" href="#time" role="tab">タイム推移</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" id="grade-tab" data-bs-toggle="tab" href="#grade" role="tab">重賞成績</a>
+        </li>
+    </ul>
+
+    <!-- タブコンテンツ -->
+    <div class="tab-content" id="analysisTabContent">
+        <!-- コース別成績 -->
+        <div class="tab-pane fade show active" id="course" role="tabpanel">
+            <div class="card stats-card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">コース別成績詳細</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container mb-4">
+                        <canvas id="courseChart"></canvas>
+                    </div>
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>コース種別</th>
+                                <th>出走数</th>
+                                <th>勝利数</th>
+                                <th>勝率</th>
+                                <th>平均タイム</th>
+                                <th>平均上がり3F</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for stat in course_stats %}
+                            <tr>
+                                <td>{{ stat.course_type }}</td>
+                                <td>{{ stat.race_count }}</td>
+                                <td>{{ stat.wins }}</td>
+                                <td>{{ stat.win_rate|floatformat:1 }}%</td>
+                                <td>{{ stat.avg_time|floatformat:1 }}</td>
+                                <td>{{ stat.avg_last_3f|floatformat:2 }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 距離別成績 -->
+        <div class="tab-pane fade" id="distance" role="tabpanel">
+            <div class="card stats-card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">距離別成績詳細</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="chart-container mb-4">
+                                <canvas id="distanceBarChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="chart-container mb-4">
+                                <canvas id="distanceRadarChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>距離区分</th>
+                                <th>出走数</th>
+                                <th>1着</th>
+                                <th>2着</th>
+                                <th>3着</th>
+                                <th>勝率</th>
+                                <th>連対率</th>
+                                <th>複勝率</th>
+                                <th>平均着順</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for stat in distance_stats %}
+                            <tr class="{% if stat.win_rate >= 20 %}table-success{% endif %}">
+                                <td>{{ stat.distance_category }}</td>
+                                <td>{{ stat.race_count }}</td>
+                                <td>{{ stat.wins }}</td>
+                                <td>{{ stat.seconds }}</td>
+                                <td>{{ stat.thirds }}</td>
+                                <td>{{ stat.win_rate|floatformat:1 }}%</td>
+                                <td>{{ stat.rentai_rate|floatformat:1 }}%</td>
+                                <td>{{ stat.fukusho_rate|floatformat:1 }}%</td>
+                                <td>{{ stat.avg_rank|floatformat:1 }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 騎手別成績 -->
+        <div class="tab-pane fade" id="jockey" role="tabpanel">
+            <div class="card stats-card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">騎手別成績詳細</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container mb-4">
+                        <canvas id="jockeyChart"></canvas>
+                    </div>
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>騎手名</th>
+                                <th>騎乗回数</th>
+                                <th>勝利数</th>
+                                <th>勝率</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for stat in jockey_stats %}
+                            <tr>
+                                <td>{{ stat.jockey }}</td>
+                                <td>{{ stat.race_count }}</td>
+                                <td>{{ stat.wins }}</td>
+                                <td>{{ stat.win_rate|floatformat:1 }}%</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 馬場状態別成績 -->
+        <div class="tab-pane fade" id="condition" role="tabpanel">
+            <div class="card stats-card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">馬場状態別成績詳細</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container mb-4">
+                        <canvas id="conditionChart"></canvas>
+                    </div>
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>馬場状態</th>
+                                <th>出走回数</th>
+                                <th>勝利数</th>
+                                <th>勝率</th>
+                                <th>平均上がり3F</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for stat in condition_stats %}
+                            <tr>
+                                <td>{{ stat.track_condition }}</td>
+                                <td>{{ stat.race_count }}</td>
+                                <td>{{ stat.wins }}</td>
+                                <td>{{ stat.win_rate|floatformat:1 }}%</td>
+                                <td>{{ stat.avg_last_3f|floatformat:2 }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- タイム推移 -->
+        <div class="tab-pane fade" id="time" role="tabpanel">
+            <div class="card stats-card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">タイム・上がり推移分析</h5>
+                </div>
+                <div class="card-body">
+                    <!-- グラフを横に2つ配置 -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="chart-container">
+                                <canvas id="timeChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="chart-container">
+                                <canvas id="last3fChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 詳細データテーブル -->
+                    <table class="table table-striped" id="timeTable">
+                        <thead>
+                            <tr>
+                                <th>レース日</th>
+                                <th>距離</th>
+                                <th>コース</th>
+                                <th>馬場状態</th>
+                                <th>タイム</th>
+                                <th>上がり3F</th>
+                                <th>着順</th>
+                                <th>騎手</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for stat in time_stats %}
+                            <tr>
+                                <td>{{ stat.race_date|date:"Y/m/d" }}</td>
+                                <td>{{ stat.distance }}m</td>
+                                <td>{{ stat.course_type }}</td>
+                                <td>{{ stat.track_condition }}</td>
+                                <td>{{ stat.avg_time|floatformat:1 }}</td>
+                                <td>{{ stat.avg_last_3f|floatformat:2 }}</td>
+                                <td>{{ stat.rank }}</td>
+                                <td>{{ stat.jockey }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 重賞成績 -->
+        <div class="tab-pane fade" id="grade" role="tabpanel">
+            <div class="card stats-card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">重賞レース成績</h5>
+                </div>
+                <div class="card-body">
+                    {% if grade_stats %}
+                        <table id="gradeTable" class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>レース名</th>
+                                    <th>日付</th>
+                                    <th>着順</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for race in grade_stats %}
+                                <tr>
+                                    <td>{{ race.race_name }}</td>
+                                    <td>{{ race.race_date|date:"Y/m/d" }}</td>
+                                    <td>{{ race.rank }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    {% else %}
+                        <div class="alert alert-info">
+                            重賞レースの出走歴はありません。
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- DataTables JS -->
+<script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    $(document).ready(function() {
+        // コース別成績グラフ
+        const courseCtx = document.getElementById('courseChart').getContext('2d');
+        new Chart(courseCtx, {
+            type: 'bar',
+            data: {
+                labels: [{% for stat in course_stats %}'{{ stat.course_type }}',{% endfor %}],
+                datasets: [{
+                    label: '勝率 (%)',
+                    data: [{% for stat in course_stats %}{{ stat.win_rate|floatformat:1 }},{% endfor %}],
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                    borderColor: 'rgb(54, 162, 235)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100
+                    }
+                }
+            }
+        });
+
+        // 距離別成績グラフ
+        // 距離別成績の棒グラフ
+        const distanceBarCtx = document.getElementById('distanceBarChart').getContext('2d');
+        new Chart(distanceBarCtx, {
+            type: 'bar',
+            data: {
+                labels: [{% for stat in distance_stats %}'{{ stat.distance_category }}',{% endfor %}],
+                datasets: [{
+                    label: '勝率',
+                    data: [{% for stat in distance_stats %}{{ stat.win_rate|floatformat:1 }},{% endfor %}],
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                    borderColor: 'rgb(54, 162, 235)',
+                    borderWidth: 1
+                }, {
+                    label: '連対率',
+                    data: [{% for stat in distance_stats %}{{ stat.rentai_rate|floatformat:1 }},{% endfor %}],
+                    backgroundColor: 'rgba(75, 192, 192, 0.5)',
+                    borderColor: 'rgb(75, 192, 192)',
+                    borderWidth: 1
+                }, {
+                    label: '複勝率',
+                    data: [{% for stat in distance_stats %}{{ stat.fukusho_rate|floatformat:1 }},{% endfor %}],
+                    backgroundColor: 'rgba(255, 159, 64, 0.5)',
+                    borderColor: 'rgb(255, 159, 64)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        title: {
+                            display: true,
+                            text: '確率 (%)'
+                        }
+                    }
+                },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: '距離別成績率'
+                    }
+                }
+            }
+        });
+
+        // 距離適性のレーダーチャート
+        const distanceRadarCtx = document.getElementById('distanceRadarChart').getContext('2d');
+        new Chart(distanceRadarCtx, {
+            type: 'radar',
+            data: {
+                labels: [{% for stat in distance_stats %}'{{ stat.distance_category }}',{% endfor %}],
+                datasets: [{
+                    label: '勝率',
+                    data: [{% for stat in distance_stats %}{{ stat.win_rate|floatformat:1 }},{% endfor %}],
+                    fill: true,
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    borderColor: 'rgb(54, 162, 235)',
+                    pointBackgroundColor: 'rgb(54, 162, 235)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgb(54, 162, 235)'
+                }, {
+                    label: '平均着順',
+                    data: [{% for stat in distance_stats %}{{ stat.avg_rank|floatformat:1 }},{% endfor %}],
+                    fill: true,
+                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                    borderColor: 'rgb(255, 99, 132)',
+                    pointBackgroundColor: 'rgb(255, 99, 132)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgb(255, 99, 132)'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: '距離適性分析'
+                    }
+                }
+            }
+        });
+
+        // タイム推移グラフ
+        // タイム推移グラフの描画
+        const timeCtx = document.getElementById('timeChart').getContext('2d');
+        new Chart(timeCtx, {
+            type: 'line',
+            data: {
+                labels: [{% for stat in time_stats %}'{{ stat.race_date|date:"Y/m/d" }}',{% endfor %}],
+                datasets: [{
+                    label: 'タイム',
+                    data: [{% for stat in time_stats %}{{ stat.avg_time|default_if_none:0|floatformat:1 }},{% endfor %}],
+                    borderColor: 'rgb(75, 192, 192)',
+                    tension: 0.1,
+                    fill: false
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'レースタイム推移'
+                    }
+                },
+                scales: {
+                    y: {
+                        reverse: true,
+                        title: {
+                            display: true,
+                            text: 'タイム (秒)'
+                        }
+                    }
+                }
+            }
+        });
+
+        // 上がり3Fグラフの描画
+        const last3fCtx = document.getElementById('last3fChart').getContext('2d');
+        new Chart(last3fCtx, {
+            type: 'line',
+            data: {
+                labels: [{% for stat in time_stats %}'{{ stat.race_date|date:"Y/m/d" }}',{% endfor %}],
+                datasets: [{
+                    label: '上がり3F',
+                    data: [{% for stat in time_stats %}{{ stat.avg_last_3f|default_if_none:0|floatformat:2 }},{% endfor %}],
+                    borderColor: 'rgb(255, 99, 132)',
+                    tension: 0.1,
+                    fill: false
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: '上がり3F推移'
+                    }
+                },
+                scales: {
+                    y: {
+                        reverse: true,
+                        title: {
+                            display: true,
+                            text: '上がり3F (秒)'
+                        }
+                    }
+                }
+            }
+        });
+
+        // DataTablesの初期化
+        $('#timeTable').DataTable({
+            language: {
+                url: '//cdn.datatables.net/plug-ins/1.11.5/i18n/ja.json'
+            },
+            order: [[0, 'desc']],  // 日付の降順でソート
+            pageLength: 10,        // 1ページあたりの表示件数
+            stateSave: true        // テーブルの状態を保存
+        });
+
+        // 重賞成績テーブルの初期化
+        $('#gradeTable').DataTable({
+            language: {
+                url: '//cdn.datatables.net/plug-ins/1.11.5/i18n/ja.json'
+            },
+            pageLength: 10,
+            order: [[1, 'desc']], // 日付の降順でソート
+        });
+    });
+
+</script>
+{% endblock %}

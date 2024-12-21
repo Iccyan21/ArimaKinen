@@ -1,0 +1,48 @@
+{% extends 'data/base.html' %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2>競馬データ一覧</h2>
+    
+    <div class="table-responsive">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>馬名</th>
+                    <th>レース日付</th>
+                    <th>レース名</th>
+                    <th>着順</th>
+                    <th>距離</th>
+                    <th>コース</th>
+                    <th>馬場状態</th>
+                    <th>タイム</th>
+                    <th>騎手</th>
+                    <th>斤量</th>
+                    <th>オッズ</th>
+                    <th>上がり3F</th>
+                    <th>通過順</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for result in results %}
+                <tr>
+                    <td>{{ result.horse_name }}</td>
+                    <td>{{ result.race_date }}</td>
+                    <td>{{ result.race_name }}</td>
+                    <td>{{ result.rank }}</td>
+                    <td>{{ result.distance }}</td>
+                    <td>{{ result.course_type }}</td>
+                    <td>{{ result.track_condition }}</td>
+                    <td>{{ result.time }}</td>
+                    <td>{{ result.jockey }}</td>
+                    <td>{{ result.weight }}</td>
+                    <td>{{ result.odds }}</td>
+                    <td>{{ result.last_3f }}</td>
+                    <td>{{ result.passing_order }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

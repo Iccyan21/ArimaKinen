@@ -1,0 +1,92 @@
+{% extends 'data/base.html' %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2>競走馬成績統計</h2>
+    
+    <div class="table-responsive">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>馬名</th>
+                    <th>総レース数</th>
+                    <th>1着</th>
+                    <th>2着</th>
+                    <th>3着</th>
+                    <th>1着率</th>
+                    <th>2着率</th>
+                    <th>3着率</th>
+                    <th>複勝率</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for stat in statistics %}
+                <tr>
+                    <td>{{ stat.horse_name }}</td>
+                    <td>{{ stat.total_races }}戦</td>
+                    <td>{{ stat.first_place }}勝</td>
+                    <td>{{ stat.second_place }}回</td>
+                    <td>{{ stat.third_place }}回</td>
+                    <td>{{ stat.first_rate|floatformat:1 }}%</td>
+                    <td>{{ stat.second_rate|floatformat:1 }}%</td>
+                    <td>{{ stat.third_rate|floatformat:1 }}%</td>
+                    <td>{{ stat.first_rate|add:stat.second_rate|add:stat.third_rate|floatformat:1 }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="mt-4">
+        <canvas id="statisticsChart"></canvas>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('statisticsChart').getContext('2d');
+    
+    const data = {
+        labels: [{% for stat in statistics %}'{{ stat.horse_name }}',{% endfor %}],
+        datasets: [
+            {
+                label: '1着率',
+                data: [{% for stat in statistics %}{{ stat.first_rate|floatformat:1 }},{% endfor %}],
+                backgroundColor: 'rgba(255, 99, 132, 0.5)',
+            },
+            {
+                label: '2着率',
+                data: [{% for stat in statistics %}{{ stat.second_rate|floatformat:1 }},{% endfor %}],
+                backgroundColor: 'rgba(54, 162, 235, 0.5)',
+            },
+            {
+                label: '3着率',
+                data: [{% for stat in statistics %}{{ stat.third_rate|floatformat:1 }},{% endfor %}],
+                backgroundColor: 'rgba(255, 206, 86, 0.5)',
+            }
+        ]
+    };
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: data,
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100
+                }
+            },
+            plugins: {
+                title: {
+                    display: true,
+                    text: '競走馬成績統計'
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

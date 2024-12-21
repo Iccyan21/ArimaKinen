@@ -1,0 +1,207 @@
+{% extends 'data/base.html' %}
+
+{% block title %}重賞レース成績分析{% endblock %}
+
+{% block extra_css %}
+<!-- DataTables CSS -->
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css">
+<style>
+    .stats-card {
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 2rem;
+    }
+    .chart-container {
+        height: 400px;
+        margin-bottom: 2rem;
+    }
+    .high-earnings {
+        background-color: rgba(255, 193, 7, 0.1);
+    }
+    .high-wins {
+        background-color: rgba(40, 167, 69, 0.1);
+    }
+    .earnings-summary {
+        font-size: 1.2rem;
+        padding: 1rem;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">重賞レース成績分析</h2>
+
+    <!-- サマリー情報 -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="stats-card">
+                <div class="card-body">
+                    <h5 class="card-title">重賞レース成績サマリー</h5>
+                    <div class="earnings-summary">
+                        <p class="mb-2">分析対象レース：GⅠ、GⅡ、GⅢ、有馬記念、帝王賞、ジャパンC</p>
+                        <p class="mb-0">対象頭数：{{ stats|length }}頭</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 賞金獲得額グラフ -->
+    <div class="card stats-card">
+        <div class="card-header">
+            <h5 class="card-title mb-0">重賞レース賞金獲得額</h5>
+        </div>
+        <div class="card-body">
+            <div class="chart-container">
+                <canvas id="earningsChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- 勝率グラフ -->
+    <div class="card stats-card">
+        <div class="card-header">
+            <h5 class="card-title mb-0">重賞レース勝率</h5>
+        </div>
+        <div class="card-body">
+            <div class="chart-container">
+                <canvas id="winRateChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- データテーブル -->
+    <div class="card stats-card">
+        <div class="card-header">
+            <h5 class="card-title mb-0">重賞レース詳細成績</h5>
+        </div>
+        <div class="card-body">
+            <table id="gradeTable" class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>馬名</th>
+                        <th>重賞出走数</th>
+                        <th>重賞勝利数</th>
+                        <th>重賞勝率</th>
+                        <th>獲得賞金</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stat in stats %}
+                    <tr class="{% if stat.earnings >= 100000000 %}high-earnings{% elif stat.win_rate >= 20 %}high-wins{% endif %}">
+                        <td>{{ stat.horse_name }}</td>
+                        <td>{{ stat.race_count }}</td>
+                        <td>{{ stat.wins }}</td>
+                        <td>{{ stat.win_rate|floatformat:1 }}%</td>
+                        <td>{{ stat.earnings|floatformat:0|intcomma }}円</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- DataTables JS -->
+<script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    $(document).ready(function() {
+        // DataTablesの初期化
+        $('#gradeTable').DataTable({
+            language: {
+                url: '//cdn.datatables.net/plug-ins/1.11.5/i18n/ja.json'
+            },
+            pageLength: 25,
+            order: [[4, 'desc']], // 獲得賞金でソート
+            columnDefs: [
+                { targets: [1,2,3], type: 'num' },
+                { 
+                    targets: 4,
+                    type: 'num',
+                    render: function(data, type, row) {
+                        if (type === 'display') {
+                            return new Intl.NumberFormat('ja-JP', {
+                                style: 'currency',
+                                currency: 'JPY'
+                            }).format(data);
+                        }
+                        return data;
+                    }
+                }
+            ]
+        });
+
+        // 賞金獲得額グラフの描画
+        const earningsCtx = document.getElementById('earningsChart').getContext('2d');
+        new Chart(earningsCtx, {
+            type: 'bar',
+            data: {
+                labels: Array.from(document.querySelectorAll('#gradeTable tbody tr')).map(row => row.cells[0].textContent),
+                datasets: [{
+                    label: '獲得賞金',
+                    data: Array.from(document.querySelectorAll('#gradeTable tbody tr')).map(row => 
+                        parseFloat(row.cells[4].textContent.replace(/[^0-9.-]+/g,""))
+                    ),
+                    backgroundColor: 'rgba(255, 193, 7, 0.5)',
+                    borderColor: 'rgb(255, 193, 7)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: '獲得賞金 (円)'
+                        }
+                    }
+                }
+            }
+        });
+
+        // 勝率グラフの描画
+        const winRateCtx = document.getElementById('winRateChart').getContext('2d');
+        new Chart(winRateCtx, {
+            type: 'bar',
+            data: {
+                labels: Array.from(document.querySelectorAll('#gradeTable tbody tr')).map(row => row.cells[0].textContent),
+                datasets: [{
+                    label: '重賞勝率',
+                    data: Array.from(document.querySelectorAll('#gradeTable tbody tr')).map(row => 
+                        parseFloat(row.cells[3].textContent)
+                    ),
+                    backgroundColor: 'rgba(40, 167, 69, 0.5)',
+                    borderColor: 'rgb(40, 167, 69)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: '勝率 (%)'
+                        }
+                    }
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

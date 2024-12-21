@@ -1,0 +1,197 @@
+{% extends 'data/base.html' %}
+
+{% block title %}騎手との相性分析{% endblock %}
+
+{% block extra_css %}
+<!-- DataTables CSS -->
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css">
+<style>
+    .stats-card {
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 2rem;
+    }
+    .chart-container {
+        height: 400px;
+        margin-bottom: 2rem;
+    }
+    .good-combination {
+        background-color: rgba(40, 167, 69, 0.1);
+    }
+    .bad-combination {
+        background-color: rgba(220, 53, 69, 0.1);
+    }
+    .summary-box {
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+    }
+    .summary-box h6 {
+        margin-bottom: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">騎手との相性分析</h2>
+
+    <!-- サマリー表示部分 -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="stats-card summary-box bg-light">
+                <h6>データ概要</h6>
+                <p class="mb-1">分析対象騎乗回数: 2回以上</p>
+                <p class="mb-0">対象馬の総数: {{ stats|length }}組</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 勝率グラフ表示部分 -->
+    <div class="card stats-card">
+        <div class="card-header">
+            <h5 class="card-title mb-0">騎手別勝率比較</h5>
+        </div>
+        <div class="card-body">
+            <div class="chart-container">
+                <canvas id="winRateChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- 平均着順グラフ表示部分 -->
+    <div class="card stats-card">
+        <div class="card-header">
+            <h5 class="card-title mb-0">騎手別平均着順</h5>
+        </div>
+        <div class="card-body">
+            <div class="chart-container">
+                <canvas id="avgRankChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- データテーブル -->
+    <div class="card stats-card">
+        <div class="card-header">
+            <h5 class="card-title mb-0">騎手別詳細データ</h5>
+        </div>
+        <div class="card-body">
+            <table id="jockeyTable" class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>馬名</th>
+                        <th>騎手</th>
+                        <th>騎乗回数</th>
+                        <th>勝率</th>
+                        <th>平均着順</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stat in stats %}
+                    <tr class="{% if stat.win_rate >= 25 %}good-combination{% elif stat.avg_rank > 6 %}bad-combination{% endif %}">
+                        <td>{{ stat.horse_name }}</td>
+                        <td>{{ stat.jockey }}</td>
+                        <td>{{ stat.race_count }}</td>
+                        <td>{{ stat.win_rate|floatformat:1 }}%</td>
+                        <td>{{ stat.avg_rank|floatformat:2 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- DataTables JS -->
+<script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    $(document).ready(function() {
+        // DataTablesの初期化
+        $('#jockeyTable').DataTable({
+            language: {
+                url: '//cdn.datatables.net/plug-ins/1.11.5/i18n/ja.json'
+            },
+            pageLength: 25,
+            order: [[3, 'desc']], // 勝率でソート
+            columnDefs: [
+                { targets: [2,3,4], type: 'num' } // 数値列の設定
+            ]
+        });
+
+        // グラフデータの準備
+        const tableData = Array.from(document.querySelectorAll('#jockeyTable tbody tr'))
+            .map(row => ({
+                horseName: row.cells[0].textContent,
+                jockey: row.cells[1].textContent,
+                raceCount: parseInt(row.cells[2].textContent),
+                winRate: parseFloat(row.cells[3].textContent),
+                avgRank: parseFloat(row.cells[4].textContent)
+            }));
+
+        // 勝率グラフの描画
+        const winRateCtx = document.getElementById('winRateChart').getContext('2d');
+        new Chart(winRateCtx, {
+            type: 'bar',
+            data: {
+                labels: tableData.map(d => `${d.jockey} (${d.horseName})`),
+                datasets: [{
+                    label: '勝率 (%)',
+                    data: tableData.map(d => d.winRate),
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                    borderColor: 'rgb(54, 162, 235)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: '勝率 (%)'
+                        }
+                    }
+                }
+            }
+        });
+
+        // 平均着順グラフの描画
+        const avgRankCtx = document.getElementById('avgRankChart').getContext('2d');
+        new Chart(avgRankCtx, {
+            type: 'horizontalBar',
+            data: {
+                labels: tableData.map(d => `${d.jockey} (${d.horseName})`),
+                datasets: [{
+                    label: '平均着順',
+                    data: tableData.map(d => d.avgRank),
+                    backgroundColor: 'rgba(255, 159, 64, 0.5)',
+                    borderColor: 'rgb(255, 159, 64)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: '着順'
+                        }
+                    }
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}
